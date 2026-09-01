@@ -9,12 +9,22 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
-public class IncidentTool {
+public class IncidentTool implements AgentTool {
 
     private final IncidentService incidentService;
 
     public IncidentTool(IncidentService incidentService) {
         this.incidentService = incidentService;
+    }
+
+    @Override
+    public String getName() {
+        return "incident-tool";
+    }
+
+    @Override
+    public String getDescription() {
+        return "Provides operations for searching and retrieving engineering incidents.";
     }
 
     public List<IncidentResponse> findOpenIncidents() {

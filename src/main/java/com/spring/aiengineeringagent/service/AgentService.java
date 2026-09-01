@@ -2,6 +2,7 @@ package com.spring.aiengineeringagent.service;
 
 import com.spring.aiengineeringagent.model.IncidentResponse;
 import com.spring.aiengineeringagent.tool.IncidentTool;
+import com.spring.aiengineeringagent.tool.ToolRegistry;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -9,15 +10,18 @@ import java.util.List;
 @Service
 public class AgentService {
 
-    private final IncidentTool incidentTool;
+    private final ToolRegistry toolRegistry;
 
-    public AgentService(IncidentTool incidentTool) {
-        this.incidentTool = incidentTool;
+    public AgentService(ToolRegistry toolRegistry) {
+        this.toolRegistry = toolRegistry;
     }
 
     public String processRequest(String request) {
 
-        String normalizedRequest = request.toLowerCase();
+        String normalizedRequest = request.toLowerCase().trim();
+
+        IncidentTool incidentTool =
+                (IncidentTool) toolRegistry.getTool("incident-tool");
 
         if (normalizedRequest.contains("open incidents")) {
 
