@@ -74,7 +74,12 @@ public class IncidentService {
     public List<IncidentResponse> getIncidentsByService(
             String serviceName) {
 
-        return incidentRepository.findByServiceName(serviceName)
+        String normalizedServiceName = serviceName
+                .trim()
+                .toLowerCase()
+                .replace(" ", "-");
+
+        return incidentRepository.findByServiceName(normalizedServiceName)
                 .stream()
                 .map(IncidentResponse::from)
                 .toList();

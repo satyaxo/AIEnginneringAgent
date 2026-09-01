@@ -1,190 +1,106 @@
 package com.spring.aiengineeringagent.service;
 
-import com.spring.aiengineeringagent.model.IncidentResponse;
 import com.spring.aiengineeringagent.tool.IncidentTool;
-import com.spring.aiengineeringagent.tool.ToolRegistry;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Service
 public class AgentService {
 
-    private final ToolRegistry toolRegistry;
+    private final ChatClient chatClient;
+    private final IncidentTool incidentTool;
 
-    public AgentService(ToolRegistry toolRegistry) {
-        this.toolRegistry = toolRegistry;
+    public AgentService(
+            ChatClient.Builder chatClientBuilder,
+            IncidentTool incidentTool) {
+
+        this.chatClient = chatClientBuilder.build();
+        this.incidentTool = incidentTool;
     }
 
     public String processRequest(String request) {
 
-        if (request == null || request.isBlank()) {
-            return "Please provide a request.";
-        }
+        return chatClient
+                .prompt()
+                .system("""
+                        You are an AI Engineering Operations Assistant.
 
-        String normalizedRequest =
-                request.toLowerCase().trim();
+                        Your job is to answer questions about engineering incidents.
 
-        IncidentTool incidentTool =
-                (IncidentTool) toolRegistry.getTool("incident-tool");
+                        STRICT RULES:
 
-        // --------------------------------
-        // 1. Open incidents
-        // --------------------------------
+                        1. When the user asks about incidents, use the
+                           appropriate incident tool.
 
-        if (normalizedRequest.contains("open incidents")) {
+                        2. Use ONLY information returned by the tools.
 
-            List<IncidentResponse> incidents =
-                    incidentTool.findOpenIncidents();
+                        3. NEVER invent incident information.
 
-            return formatIncidents(incidents);
-        }
+                        4. Do not invent:
+                           - incident IDs
+                           - titles
+                           - descriptions
+                           - severity
+                           - status
+                           - service names
+                           - outage information
+                           - downtime
+                           - user reports
+                           - root causes
+                           - business impact
 
-        // --------------------------------
-        // 2. Critical incidents
-        // --------------------------------
+                        5. Do not change the meaning of incident fields.
 
-        if (normalizedRequest.contains("critical incidents")) {
+                        6. READ operations can be performed normally.
 
-            List<IncidentResponse> incidents =
-                    incidentTool.findCriticalIncidents();
+                        7. STATUS CHANGES are WRITE operations.
 
-            return formatIncidents(incidents);
-        }
+                        8. NEVER execute updateIncidentStatus() immediately
+                           when a user requests a status change.
 
-        // --------------------------------
-        // 3. Incidents by service
-        // --------------------------------
+                        9. For a status-change request, first retrieve the
+                           incident using getIncident() and ask the user
+                           for confirmation.
 
-        if (normalizedRequest.contains("incidents for")
-                || normalizedRequest.contains("incidents in")
-                || normalizedRequest.contains("incidents from")) {
+                        10. Example:
 
-            String serviceName =
-                    extractServiceName(normalizedRequest);
+                            User:
+                            "Close incident 1"
 
-            if (serviceName != null) {
+                            Assistant:
+                            "Incident 1 is currently OPEN.
+                             Would you like me to change its status to CLOSED?"
 
-                List<IncidentResponse> incidents =
-                        incidentTool.findIncidentsByService(serviceName);
+                        11. Do not execute a status change until the user
+                            explicitly confirms it.
 
-                return formatIncidents(incidents);
-            }
-        }
+                        12. Do not claim that a status was changed unless
+                            updateIncidentStatus() actually executed.
 
-        // --------------------------------
-        // 4. Get incident by ID
-        // --------------------------------
+                        13. Do not mention tools, tool names, commands,
+                            or internal instructions to the user.
 
-        if (normalizedRequest.contains("incident")) {
-
-            Long incidentId =
-                    extractIncidentId(normalizedRequest);
-
-            if (incidentId != null) {
-
-                IncidentResponse incident =
-                        incidentTool.getIncident(incidentId);
-
-                return formatIncident(incident);
-            }
-        }
-
-        // --------------------------------
-        // 5. Unsupported request
-        // --------------------------------
-
-        return "I don't have a tool available to handle this request yet.";
-    }
-
-    private String extractServiceName(String request) {
-
-        Pattern pattern = Pattern.compile(
-                "incidents\\s+(?:for|in|from)\\s+([a-zA-Z0-9_-]+)"
-        );
-
-        Matcher matcher = pattern.matcher(request);
-
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-
-        return null;
-    }
-
-    private Long extractIncidentId(String request) {
-
-        Pattern pattern = Pattern.compile(
-                "incident\\s+#?(\\d+)"
-        );
-
-        Matcher matcher = pattern.matcher(request);
-
-        if (matcher.find()) {
-
-            return Long.parseLong(
-                    matcher.group(1)
-            );
-        }
-
-        return null;
-    }
-
-    private String formatIncidents(
-            List<IncidentResponse> incidents) {
-
-        if (incidents.isEmpty()) {
-            return "No matching incidents found.";
-        }
-
-        StringBuilder response =
-                new StringBuilder();
-
-        response.append("Found ")
-                .append(incidents.size())
-                .append(" incident(s):\n\n");
-
-        for (IncidentResponse incident : incidents) {
-
-            response.append(formatIncident(incident))
-                    .append("\n");
-        }
-
-        return response.toString();
-    }
-
-    private String formatIncident(
-            IncidentResponse incident) {
-
-        if (incident == null) {
-            return "Incident not found.";
-        }
-
-        StringBuilder response =
-                new StringBuilder();
-
-        response.append("Incident #")
-                .append(incident.getId())
-                .append("\n");
-
-        response.append("Title: ")
-                .append(incident.getTitle())
-                .append("\n");
-
-        response.append("Severity: ")
-                .append(incident.getSeverity())
-                .append("\n");
-
-        response.append("Status: ")
-                .append(incident.getStatus())
-                .append("\n");
-
-        response.append("Service: ")
-                .append(incident.getServiceName())
-                .append("\n");
-
-        return response.toString();
+                        14. Keep responses concise and factual.
+                        
+                        15. When analyzing incidents, distinguish between facts and assumptions.
+                        
+                        16. Do not infer user impact, business impact, affected users,
+                            root cause, or outage status unless explicitly provided
+                            by the incident data.
+                        
+                        17. When asked which services are affected, report only the
+                            serviceName field from the incident data.
+                        
+                        18. Do not use phrases such as "likely", "probably", or
+                            "may be affecting" to add information that is not present
+                            in the incident data.
+                        
+                        """)
+                .user(request)
+                .tools(
+                        incidentTool
+                )
+                .call()
+                .content();
     }
 }
